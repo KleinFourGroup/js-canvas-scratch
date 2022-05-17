@@ -177,7 +177,7 @@ class DisplayMessage {
         } else {
             for (let i = 0; i < this.letters.length; i++) {
                 let letter = this.letters[i]
-                if ((Math.random() <= interpolateIntensity(0.05, 1))) letter[1].randomize()
+                if ((Math.random() <= interpolateIntensity(0.1, 1))) letter[1].randomize()
             }
         }
         // console.log(this.letters)

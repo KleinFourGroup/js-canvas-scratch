@@ -120,167 +120,222 @@ class TextStyle {
     }
 }
 
-class TextImage {
-    constructor(imageData, heightAbove, heightBelow) {
-        this.imageData = imageData
-        this.heightAbove = heightAbove
-        this.heightBelow = heightBelow
+class PhysicsData {
+    constructor() {
+        this.x = undefined
+        this.y = undefined
+
+        this.vx = 0
+        this.vy = 0
+        this.ax = 0
+        this.ay = 0
+    }
+
+    setLoc(x, y) {
+        this.x = x
+        this.y = y
+    }
+
+    moveTowards(targetX, targetY, delta) {
+        let angle = Math.atan2(targetY - this.y, targetX - this.x)
+        let currVel = vel + interpolateIntensity(0, 650)
+        let dX = Math.cos(angle) * currVel * delta
+        let dY = Math.sin(angle) * currVel * delta
+        // let dX = (vX + (intensity - 0.5)) * delta
+        // let dY = (vY + (intensity - 0.5)) * delta
+        if (Math.abs(targetX - this.x) < dX) {
+            this.x = targetX
+        } else {
+            this.x += dX
+        }
+        if (Math.abs(targetY - this.y) < dY) {
+            this.y = targetY
+        } else {
+            this.y += dY
+        }
+    }
+
+    springTowards(targetX, targetY) {
+        let dist = Math.hypot(targetY - this.y, targetX - this.x)
+        let angle = Math.atan2(targetY - this.y, targetX - this.x)
+        let k = 10
+
+        this.ax = Math.cos(angle) * k * dist
+        this.ay = Math.sin(angle) * k * dist
+    }
+
+    drag() {
+        let v = Math.hypot(this.vy, this.vx, 3)
+        let angle = Math.atan2(this.vy, this.vx)
+        let d = 0.05
+
+        this.ax -= Math.cos(angle) * d * v * v
+        this.ay -= Math.sin(angle) * d * v * v
+    }
+
+    updateVel(delta) {
+        this.vx += this.ax * delta
+        this.vy += this.ay * delta
+    }
+
+    updateLoc(delta) {
+        this.x += this.vx * delta
+        this.y += this.vy * delta
     }
 }
 
-function getTextImage(txt, style) {
-    let textWidth, textHeight
-    if (textData !== undefined) {
-        textWidth = textData.actualBoundingBoxLeft + textData.actualBoundingBoxRight
-        textHeight = textData.actualBoundingBoxAscent + textData.actualBoundingBoxDescent
-        offCtx.clearRect(0, 0, textWidth, textHeight)
+class CharacterSprite {
+    constructor(txt, style) {
+        this.txt = txt
+        this.style = style
+        this.canvas = document.createElement('canvas')
+        this.ctx = this.canvas.getContext("2d")
+        this.textData = undefined
+        this.textWidth = undefined
+        this.textHeight = undefined
+
+        this.physics = new PhysicsData()
     }
 
-    offCtx.font = style.toString()
+    generate() {
+        if (this.textData !== undefined) {
+            this.ctx.clearRect(0, 0, this.textWidth, this.textHeight)
+        }
+    
+        this.ctx.font = this.style.toString()
+    
+        if (this.txt !== " ") this.textData = this.ctx.measureText(this.txt)
+        else this.textData = this.ctx.measureText("?")
+    
+        this.textWidth = this.textData.actualBoundingBoxLeft + this.textData.actualBoundingBoxRight
+        this.textHeight = this.textData.actualBoundingBoxAscent + this.textData.actualBoundingBoxDescent
 
-    if (txt !== " ") textData = offCtx.measureText(txt)
-    else textData = offCtx.measureText("?")
+        // this.ctx.fillStyle = getColor()
+        // this.ctx.fillRect(0, 0, textWidth, textHeight)
+        this.ctx.strokeStyle = getInvColor()
+        this.ctx.fillStyle = getInvColor()
+        if (this.style.stroke) this.ctx.strokeText(this.txt, this.textData.actualBoundingBoxLeft, this.textData.actualBoundingBoxAscent)
+        else this.ctx.fillText(this.txt, this.textData.actualBoundingBoxLeft, this.textData.actualBoundingBoxAscent)
+    }
 
-    textWidth = textData.actualBoundingBoxLeft + textData.actualBoundingBoxRight
-    textHeight = textData.actualBoundingBoxAscent + textData.actualBoundingBoxDescent
-
-    offCtx.fillStyle = getColor()
-    offCtx.fillRect(0, 0, textWidth, textHeight)
-    offCtx.strokeStyle = getInvColor()
-    offCtx.fillStyle = getInvColor()
-    if (style.stroke) offCtx.strokeText(txt, textData.actualBoundingBoxLeft, textData.actualBoundingBoxAscent)
-    else offCtx.fillText(txt, textData.actualBoundingBoxLeft, textData.actualBoundingBoxAscent)
-
-
-    let textImage = new TextImage(offCtx.getImageData(0, 0, textWidth, textHeight), textData.actualBoundingBoxAscent, textData.actualBoundingBoxDescent)
-
-    return textImage
+    draw() {
+        let renderX = this.physics.x - this.textWidth / 2
+        let renderY = this.physics.y - this.textData.actualBoundingBoxAscent
+    
+        ctx.drawImage(this.canvas,
+                      0, 0, this.textWidth, this.textHeight,
+                      renderX, renderY, this.textWidth, this.textHeight)
+        // Wow, that's it
+    }
 }
-
 class DisplayMessage {
     constructor() {
         this.message = undefined
-        this.letters = []
-        this.images = []
+        this.sprites = undefined
+
+        this.targetX = undefined
+        this.targetY = undefined
+        // this.currLoc = new PhysicsData()
     }
 
     setText(txt) {
         if (txt !== this.message) {
             this.message = txt
+            this.sprites = []
 
             for (let i = 0; i < this.message.length; i++) {
                 let ch = this.message.charAt(i)
+
+                let sprite = new CharacterSprite(ch, new TextStyle())
         
-                this.letters.push([ch, new TextStyle()])
-                // (getTextImage(ch))
-            }
-        } else {
-            for (let i = 0; i < this.letters.length; i++) {
-                let letter = this.letters[i]
-                if ((Math.random() <= interpolateIntensity(0.1, 1))) letter[1].randomize()
+                this.sprites.push(sprite)
             }
         }
-        // console.log(this.letters)
+    }
+
+    refreshText() {
+        for (let i = 0; i < this.sprites.length; i++) {
+            if ((Math.random() <= interpolateIntensity(0.1, 1))) this.sprites[i].style.randomize()
+        }
     }
 
     getImages() {
-        this.images = []
-
-        for (let i = 0; i < this.letters.length; i++) {
-            let ch = this.letters[i][0]
-            let sty = this.letters[i][1]
-    
-            this.images.push(getTextImage(ch, sty))
+        for (let i = 0; i < this.sprites.length; i++) {
+            this.sprites[i].generate()
         }
-
-        // console.log(this.images)
     }
 
-    drawAt(x, y) {
+    setLoc(x, y) {
         let totalWidth = 0, maxAbove = 0, maxBelow = 0
-        this.images.forEach((img) => {
-            totalWidth += img.imageData.width
-            maxAbove = Math.max(maxAbove, img.heightAbove)
-            maxBelow = Math.max(maxBelow, img.heightBelow)
+        this.sprites.forEach((sprite) => {
+            totalWidth += sprite.textWidth
+            maxAbove = Math.max(maxAbove, sprite.textData.actualBoundingBoxAscent)
+            maxBelow = Math.max(maxBelow, sprite.textData.actualBoundingBoxDescent)
         })
     
         let messageHeight = maxAbove + maxBelow
         let baseY = (y - messageHeight / 2) + maxAbove
         let currX = x - totalWidth / 2
     
-        for (let i = 0; i < this.images.length; i++) {
-            let img = this.images[i]
+        for (let i = 0; i < this.sprites.length; i++) {
+            let sprite = this.sprites[i]
     
-            ctx.putImageData(img.imageData, currX, baseY - img.heightAbove)
+            sprite.physics.setLoc(currX + sprite.textWidth / 2, baseY)
     
-            currX += img.imageData.width
+            currX += sprite.textWidth
+        }
+
+        let head = this.sprites[0]
+
+        this.targetX = head.physics.x
+        this.targetY = head.physics.y
+
+        // this.currLoc.setLoc(x, y)
+
+        // this.updateOffsets()
+    }
+
+    setTarget(x, y) {
+        this.targetX = x
+        this.targetY = y
+    }
+
+    draw() {
+        for (let i = 0; i < this.sprites.length; i++) {
+            this.sprites[i].draw()
+        }
+    }
+
+    update(delta) {
+        let head = this.sprites[0]
+        
+        for (let i = 1; i < this.sprites.length; i++) {
+            let prevSprite = this.sprites[i - 1]
+            let currSprite = this.sprites[i]
+            let targetX = prevSprite.physics.x + (prevSprite.textWidth + currSprite.textWidth) / 2
+            let targetY = prevSprite.physics.y
+            currSprite.physics.springTowards(targetX, targetY)
+            currSprite.physics.drag()
+        }
+        
+        for (let i = 1; i < this.sprites.length; i++) {
+            this.sprites[i].physics.updateVel(delta)
+        }
+
+        head.physics.moveTowards(this.targetX, this.targetY, delta)
+        
+        for (let i = 1; i < this.sprites.length; i++) {
+            this.sprites[i].physics.updateLoc(delta)
         }
     }
 }
 
 let displayMessage = new DisplayMessage()
+displayMessage.setText("Happy Fathers' Day, Dad!")
+displayMessage.getImages()
+displayMessage.setLoc(canvas.width / 2, canvas.height / 2)
 
-function setText(txt) {
-
-    letterData = []
-
-    for (let i = 0; i < txt.length; i++) {
-        let ch = txt.charAt(i)
-
-        letterData.push([ch, new TextStyle(Math.floor(30 + 16 * Math.random()), "serif")])
-        // (getTextImage(ch))
-    }
-}
-
-function drawText() {
-    letterImages = []
-
-    for (let i = 0; i < letterData.length; i++) {
-        let ch = letterData[i][0]
-        let sty = letterData[i][1]
-
-    
-        letterImages.push(getTextImage(ch, sty))
-    }
-
-    let totalWidth = 0
-    letterImages.forEach((img) => {
-        totalWidth += img.imageData.width
-    })
-
-    let x = (canvas.width - totalWidth) / 2
-
-    for (let i = 0; i < letterImages.length; i++) {
-        let img = letterImages[i]
-
-        ctx.putImageData(img.imageData, x, (canvas.height - img.imageData.height) / 2)
-
-        x += img.imageData.width
-    }
-}
-
-let drawX = canvas.width / 2, drawY = canvas.height / 2
-let targetX = drawX, targetY = drawY
 let vel = 50
-
-function updateLoc(delta) {
-    let angle = Math.atan2(targetY - drawY, targetX - drawX)
-    let currVel = vel + interpolateIntensity(0, 650)
-    let dX = Math.cos(angle) * currVel * delta
-    let dY = Math.sin(angle) * currVel * delta
-    // let dX = (vX + (intensity - 0.5)) * delta
-    // let dY = (vY + (intensity - 0.5)) * delta
-    if (Math.abs(targetX - drawX) < dX) {
-        drawX = targetX
-    } else {
-        drawX += dX
-    }
-    if (Math.abs(targetY - drawY) < dY) {
-        drawY = targetY
-    } else {
-        drawY += dY
-    }
-}
 
 function updateIntensity(delta) {
     // if (intensity > 8) intensity -= delta
@@ -294,8 +349,8 @@ function updateIntensity(delta) {
     if (intensity < 0.5) intensity = 0.5
 }
 
-function updateTick() {
-    displayMessage.setText("Happy Birthday, Dad!")
+function updateTick(isStart) {
+    if (!isStart) displayMessage.refreshText()
 
     vRed = (Math.random() * 2 - 1) // * interpolateIntensity(0.5, 3)
     vGreen = (Math.random() * 2 - 1) // * interpolateIntensity(0.5, 3)
@@ -307,14 +362,14 @@ function updateTick() {
 function updateFrame(timestamp) {
     if (prev === undefined) prev = timestamp
     if (startTick === undefined) {
-        updateTick()
+        updateTick(true)
         startTick = timestamp
     }
 
     let dTick = (timestamp - startTick) / 1000
 
     if (dTick > tickLength) {
-        updateTick()
+        updateTick(false)
         startTick = timestamp
     }
 
@@ -324,8 +379,11 @@ function updateFrame(timestamp) {
         tickLength = interpolateIntensity(2, 0.2)
 
         updateIntensity(delta)
-        updateLoc(delta)
+        
         updateColors(delta)
+
+        displayMessage.update(delta)
+        // updateLoc(delta)
     }
 
     // textImage = getTextImage("Happy Birthday, Dad! " + roundTo(dTick, 2) + "/" + roundTo(tickLength, 2))
@@ -336,7 +394,8 @@ function updateFrame(timestamp) {
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     displayMessage.getImages()
-    displayMessage.drawAt(drawX, drawY)
+    // displayMessage.setLoc(drawX, drawY)
+    displayMessage.draw()
     // drawText()
     // ctx.putImageData(textImage, 100, 100)
     // console.log(timestamp)
@@ -345,8 +404,8 @@ function updateFrame(timestamp) {
 }
 
 addEventListener("click", (event) => {
-    targetX = event.clientX
-    targetY = event.clientY
+    displayMessage.targetX = event.clientX
+    displayMessage.targetY = event.clientY
 
     intensity += 1
     if (intensity > 10) intensity = 10

@@ -155,19 +155,22 @@ class PhysicsData {
         }
     }
 
-    springTowards(targetX, targetY) {
-        let dist = Math.hypot(targetY - this.y, targetX - this.x)
-        let angle = Math.atan2(targetY - this.y, targetX - this.x)
-        let k = 10
-
-        this.ax = Math.cos(angle) * k * dist
-        this.ay = Math.sin(angle) * k * dist
+    resetAcc() {
+        this.ax = 0
+        this.ay = 0
     }
 
-    drag() {
+    springTowards(targetX, targetY, k) {
+        let dist = Math.hypot(targetY - this.y, targetX - this.x)
+        let angle = Math.atan2(targetY - this.y, targetX - this.x)
+
+        this.ax += Math.cos(angle) * k * dist
+        this.ay += Math.sin(angle) * k * dist
+    }
+
+    drag(d) {
         let v = Math.hypot(this.vy, this.vx, 3)
         let angle = Math.atan2(this.vy, this.vx)
-        let d = 0.05
 
         this.ax -= Math.cos(angle) * d * v * v
         this.ay -= Math.sin(angle) * d * v * v
@@ -307,26 +310,46 @@ class DisplayMessage {
     }
 
     update(delta) {
+        
         let head = this.sprites[0]
+        let sentinel = this.sprites[1]
+        console.log(`Update start: ${delta}`)
+        console.log(`\t(${sentinel.physics.x}, ${sentinel.physics.y}) (${sentinel.physics.vx}, ${sentinel.physics.vy}) (${sentinel.physics.ax}, ${sentinel.physics.ay})`)
+
         
         for (let i = 1; i < this.sprites.length; i++) {
+            this.sprites[i].physics.resetAcc()
             let prevSprite = this.sprites[i - 1]
             let currSprite = this.sprites[i]
             let targetX = prevSprite.physics.x + (prevSprite.textWidth + currSprite.textWidth) / 2
             let targetY = prevSprite.physics.y
-            currSprite.physics.springTowards(targetX, targetY)
-            currSprite.physics.drag()
+            currSprite.physics.springTowards(targetX, targetY, 10)
+            currSprite.physics.drag(0.01 + 0.001 * Math.pow(i - 1, 1.25))
         }
+        console.log(`\t(${sentinel.physics.x}, ${sentinel.physics.y}) (${sentinel.physics.vx}, ${sentinel.physics.vy}) (${sentinel.physics.ax}, ${sentinel.physics.ay})`)
+        
+        for (let i = 1; i < this.sprites.length - 1; i++) {
+            let nextSprite = this.sprites[i + 1]
+            let currSprite = this.sprites[i]
+            let targetX = nextSprite.physics.x - (nextSprite.textWidth + currSprite.textWidth) / 2
+            let targetY = nextSprite.physics.y
+            currSprite.physics.springTowards(targetX, targetY, 2)
+        }
+        console.log(`\t(${sentinel.physics.x}, ${sentinel.physics.y}) (${sentinel.physics.vx}, ${sentinel.physics.vy}) (${sentinel.physics.ax}, ${sentinel.physics.ay})`)
         
         for (let i = 1; i < this.sprites.length; i++) {
             this.sprites[i].physics.updateVel(delta)
         }
+        console.log(`\t(${sentinel.physics.x}, ${sentinel.physics.y}) (${sentinel.physics.vx}, ${sentinel.physics.vy}) (${sentinel.physics.ax}, ${sentinel.physics.ay})`)
 
         head.physics.moveTowards(this.targetX, this.targetY, delta)
+        console.log(`\t(${sentinel.physics.x}, ${sentinel.physics.y}) (${sentinel.physics.vx}, ${sentinel.physics.vy}) (${sentinel.physics.ax}, ${sentinel.physics.ay})`)
         
         for (let i = 1; i < this.sprites.length; i++) {
             this.sprites[i].physics.updateLoc(delta)
         }
+
+        console.log(`\t(${sentinel.physics.x}, ${sentinel.physics.y}) (${sentinel.physics.vx}, ${sentinel.physics.vy}) (${sentinel.physics.ax}, ${sentinel.physics.ay})`)
     }
 }
 
@@ -357,9 +380,13 @@ function updateTick(isStart) {
     vBlue = (Math.random() * 2 - 1) // * interpolateIntensity(0.5, 3)
 
     console.log("Tick!")
+
+    str = ""
+
 }
 
 function updateFrame(timestamp) {
+
     if (prev === undefined) prev = timestamp
     if (startTick === undefined) {
         updateTick(true)
@@ -375,6 +402,7 @@ function updateFrame(timestamp) {
 
     if (prev !== timestamp) {
         let delta = (timestamp - prev) / 1000
+        // console.log(delta)
         
         tickLength = interpolateIntensity(2, 0.2)
 
@@ -383,6 +411,7 @@ function updateFrame(timestamp) {
         updateColors(delta)
 
         displayMessage.update(delta)
+
         // updateLoc(delta)
     }
 
@@ -400,7 +429,7 @@ function updateFrame(timestamp) {
     // ctx.putImageData(textImage, 100, 100)
     // console.log(timestamp)
     prev = timestamp
-    requestAnimationFrame(updateFrame)
+    if (!isNaN(displayMessage.sprites[1].physics.x)) requestAnimationFrame(updateFrame)
 }
 
 addEventListener("click", (event) => {
